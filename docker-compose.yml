@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    container_name: gaming_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: analyst
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: gaming_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  etl:
+    build: .
+    container_name: gaming_etl
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://analyst:password123@db:5432/gaming_db
+    volumes:
+      - .:/app
+
+volumes:
+  postgres_data:
