@@ -1,74 +1,53 @@
--- Portfolio Project: Mobile Gaming Analytics (PostgreSQL / BigQuery Compatible)
--- This script contains SQL queries for calculating key gaming KPIs.
+-- Portfolio Project: Gaming Analytics, ML, and Market Trends
 
--- 1. Daily Active Users (DAU)
--- Measures unique players who logged in on a specific date.
+-- 1. Top Genres by Global Sales (Market Analysis)
 SELECT
-    DATE(LoginTime) AS LogDate,
-    COUNT(DISTINCT PlayerID) AS DAU
-FROM sessions
+    Genre,
+    ROUND(SUM(Global_Sales)::NUMERIC, 2) AS TotalGlobalSales,
+    COUNT(*) AS NumberOfTitles
+FROM vgsales
 GROUP BY 1
-ORDER BY 1;
+ORDER BY 2 DESC
+LIMIT 5;
 
--- 2. Day 1 Retention Rate (Using Window Functions)
--- Calculates the percentage of users who returned exactly one day after their registration.
-WITH PlayerActivity AS (
-    SELECT
-        p.PlayerID,
-        p.RegistrationDate::DATE AS RegDate,
-        s.LoginTime::DATE AS ActivityDate
-    FROM players p
-    JOIN sessions s ON p.PlayerID = s.PlayerID
-),
-RetentionFlags AS (
-    SELECT
-        RegDate,
-        PlayerID,
-        MAX(CASE WHEN ActivityDate = RegDate + INTERVAL '1 day' THEN 1 ELSE 0 END) AS D1_Retained
-    FROM PlayerActivity
-    GROUP BY 1, 2
-)
+-- 2. Player Churn Risk by Country
+-- Assuming the 'players' table has been updated by the Python ETL script with 'IsChurnRisk'
 SELECT
-    RegDate,
-    COUNT(PlayerID) AS NewUsers,
-    SUM(D1_Retained) AS RetainedUsers,
-    ROUND(SUM(D1_Retained)::NUMERIC / COUNT(PlayerID) * 100, 2) AS D1_Retention_Pct
-FROM RetentionFlags
+    Country,
+    COUNT(*) AS TotalPlayers,
+    SUM(IsChurnRisk) AS HighRiskPlayers,
+    ROUND(SUM(IsChurnRisk)::NUMERIC / COUNT(*) * 100, 2) AS ChurnRisk_Pct
+FROM players
 GROUP BY 1
-ORDER BY 1;
+ORDER BY 4 DESC;
 
--- Note for BigQuery: Use DATE_ADD(RegDate, INTERVAL 1 DAY) instead of RegDate + INTERVAL '1 day'.
-
--- 3. Average Revenue Per User (ARPU) - Last 30 Days
--- Calculates total revenue divided by the total number of unique players in the last 30 days.
-WITH ActivePlayers AS (
-    SELECT COUNT(DISTINCT PlayerID) AS TotalPlayers
-    FROM sessions
-    WHERE LoginTime >= CURRENT_DATE - INTERVAL '30 days'
+-- 3. Correlation between Market Trends and Internal Monetization
+-- Comparing our top item categories with the most popular market genres (Simplified)
+WITH MarketTopGenres AS (
+    SELECT Genre, SUM(Global_Sales) as Sales
+    FROM vgsales
+    GROUP BY 1
+    ORDER BY 2 DESC
+    LIMIT 3
 ),
-Revenue AS (
-    SELECT SUM(Amount) AS TotalRevenue
+InternalRevenue AS (
+    SELECT ItemCategory, SUM(Amount) as Revenue
     FROM transactions
-    WHERE Timestamp >= CURRENT_DATE - INTERVAL '30 days'
+    GROUP BY 1
 )
 SELECT
-    TotalRevenue,
-    TotalPlayers,
-    ROUND(TotalRevenue::NUMERIC / NULLIF(TotalPlayers, 0), 2) AS ARPU
-FROM Revenue, ActivePlayers;
+    i.ItemCategory,
+    i.Revenue,
+    CASE WHEN i.ItemCategory IN (SELECT Genre FROM MarketTopGenres) THEN 'Aligned with Market' ELSE 'Niche Segment' END AS MarketAlignment
+FROM InternalRevenue i;
 
--- 4. Player Segmentation by Spending (LTV Ranking)
--- Categorizes players based on their lifetime spending using NTILE or CASE.
+-- 4. DAU Trend with Platform Context
+-- Joins internal player activity with market platform data
 SELECT
-    p.PlayerID,
-    COALESCE(SUM(t.Amount), 0) AS LifetimeSpend,
-    CASE
-        WHEN SUM(t.Amount) >= 500 THEN 'Whale'
-        WHEN SUM(t.Amount) >= 100 THEN 'Dolphin'
-        WHEN SUM(t.Amount) > 0 THEN 'Minnow'
-        ELSE 'Non-Payer'
-    END AS PlayerSegment,
-    PERCENT_RANK() OVER (ORDER BY SUM(t.Amount) DESC) AS SpendPercentile
-FROM players p
-LEFT JOIN transactions t ON p.PlayerID = t.PlayerID
-GROUP BY p.PlayerID;
+    DATE(s.LoginTime) AS LogDate,
+    p.DeviceType,
+    COUNT(DISTINCT s.PlayerID) AS DAU
+FROM sessions s
+JOIN players p ON s.PlayerID = p.PlayerID
+GROUP BY 1, 2
+ORDER BY 1, 3 DESC;

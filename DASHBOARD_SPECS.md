@@ -1,40 +1,30 @@
-# Dashboard Specifications: Mobile Gaming Performance
+# Dashboard Specifications: Gaming Performance & Predictions
 
-## Primary Tool: Power BI
-This dashboard leverages Power BI for advanced data modeling and interactive storytelling.
+## Tool: Power BI
+The dashboard provides a 360-degree view of player behavior and market trends.
 
-## Data Model (Star Schema)
-- **Fact Table**: `Fact_Transactions`, `Fact_Sessions`
-- **Dimension Tables**: `Dim_Players`, `Dim_Date`, `Dim_Items`
-- **Relationships**: One-to-Many from Dimensions to Facts.
+## 1. Predictive Insights (ML Model)
+- **Churn Risk Scorecard**: Average predicted churn probability.
+- **Risk Distribution**: Histogram of players by churn probability buckets.
+- **Top Risk Factors**: Bar chart showing the impact of Country and Device on churn risk.
+- **Alert List**: Table of high-risk "No-Show" players (Synced with the Google Sheets automation).
 
-## Power BI Key Features
-### 1. Measures (DAX)
-- `Total Revenue = SUM(transactions[Amount])`
-- `DAU = DISTINCTCOUNT(sessions[PlayerID])`
-- `Retention Rate D1 = DIVIDE([Retained Players D1], [New Players], 0)`
-- `Rolling 7D Revenue = CALCULATE([Total Revenue], DATESINPERIOD('Dim_Date'[Date], LASTDATE('Dim_Date'[Date]), -7, DAY))`
+## 2. Market Benchmarking (Video Game Sales)
+- **Genre Popularity**: Bubble chart showing Global Sales vs. Number of Titles by Genre.
+- **Platform Lifecycle**: Stacked Area chart of Sales by Platform over the years.
+- **Market Share**: Donut chart of Publisher sales.
 
-### 2. Visualizations
-- **Executive Summary**: KPI Cards for DAU, MAU, ARPU, and Total Revenue.
-- **Engagement Trend**: Area Chart showing DAU and MAU over time.
-- **Monetization Deep Dive**: Waterfall Chart showing revenue growth by item category.
-- **Cohort Analysis**: Matrix visual showing D1, D7, and D30 retention heatmaps.
-- **Player Segmentation**: Tree Map showing the distribution of Whales vs. Minnows.
+## 3. Engagement & Monetization
+- **DAU Trends**: Line chart with a forecast for the next 7 days.
+- **Revenue Heatmap**: Global revenue by Country.
+- **ARPU by Platform**: Comparison of player value vs. market platform trends.
 
-### 3. Interactivity & Filters
-- **Slicers**: Date, Country, Device Platform (iOS/Android).
-- **Drill-through**: Click on a Country to see detailed player behavior for that region.
-- **Tooltips**: Hover over the Engagement chart to see specific event counts.
+## Technical DAX Measures
+- `Churn Rate % = DIVIDE(COUNTROWS(FILTER(players, players[IsChurnRisk] = 1)), COUNTROWS(players))`
+- `Market vs. Internal Sales = [Total Internal Revenue] / SUM(vgsales[Global_Sales])`
+- `Predicted No-Shows = SUMX(players, players[IsChurnRisk])`
 
-## Secondary Tool: Google Sheets
-For quick ad-hoc analysis and reporting.
-- Use **Connected Sheets** to pull data directly from BigQuery.
-- **Pivot Tables** for simple metric aggregation.
-- **Sparklines** for visualizing 30-day trends in a compact format.
-
-## Implementation Steps
-1. Connect Power BI to the **PostgreSQL** or **BigQuery** source.
-2. Build the relationship model (Star Schema).
-3. Create the DAX measures mentioned above.
-4. Design the UI with a consistent color palette (Gaming-themed: Dark mode with neon accents).
+## UI/UX Design
+- **Theme**: Dark Mode with "Cyberpunk" accents.
+- **Navigation**: Sidebar with tabs for "Operational Overview", "Predictive Analytics", and "Market Trends".
+- **Dynamic Filtering**: Slicers for Genre and Year to filter both the market data and internal segments.
