@@ -1,30 +1,64 @@
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 import os
 import time
 import pickle
 
-def load_local_data():
-    """Simulates loading raw CSV data into pandas dataframes."""
-    print("Loading raw data from CSVs...")
-    players = pd.read_csv('players.csv')
-    sessions = pd.read_csv('sessions.csv')
-    transactions = pd.read_csv('transactions.csv')
-    vgsales = pd.read_csv('vgsales.csv')
-    return players, sessions, transactions, vgsales
+def generate_mock_internal_data(n_players=100):
+    """Generates mock operational data for the pipeline."""
+    print(f"Generating mock data for {n_players} players...")
+    countries = ['Armenia', 'USA', 'UK', 'France', 'Germany', 'Japan']
+    devices = ['iOS', 'Android', 'PC']
+
+    players = pd.DataFrame({
+        'PlayerID': range(1, n_players + 1),
+        'RegistrationDate': pd.date_range(start='2026-06-01', periods=n_players, freq='h'),
+        'Country': np.random.choice(countries, n_players),
+        'DeviceType': np.random.choice(devices, n_players),
+        'InitialSessionDuration': np.random.normal(300, 100, n_players)
+    })
+
+    sessions = pd.DataFrame({
+        'SessionID': range(1001, 1001 + n_players * 2),
+        'PlayerID': np.random.choice(players['PlayerID'], n_players * 2),
+        'LoginTime': pd.date_range(start='2026-06-01', periods=n_players * 2, freq='30min'),
+        'Duration': np.random.randint(60, 3600, n_players * 2)
+    })
+
+    transactions = pd.DataFrame({
+        'TransactionID': range(5001, 5011),
+        'PlayerID': np.random.choice(players['PlayerID'], 10),
+        'Amount': np.random.uniform(0.99, 99.99, 10),
+        'Timestamp': pd.date_range(start='2026-06-01', periods=10, freq='D'),
+        'ItemCategory': np.random.choice(['Skins', 'Currency', 'Boost', 'Pass'], 10)
+    })
+
+    return players, sessions, transactions
+
+def load_vgsales():
+    """Attempts to load the vgsales.csv dataset provided by the user."""
+    try:
+        print("Loading vgsales.csv...")
+        return pd.read_csv('vgsales.csv')
+    except FileNotFoundError:
+        print("vgsales.csv not found. Creating a minimal mock version for demonstration.")
+        return pd.DataFrame({
+            'Rank': [1, 2], 'Name': ['Mock Game A', 'Mock Game B'],
+            'Platform': ['Wii', 'NES'], 'Year': [2006, 1985],
+            'Genre': ['Sports', 'Platform'], 'Publisher': ['Nintendo', 'Nintendo'],
+            'NA_Sales': [41.49, 29.08], 'EU_Sales': [29.02, 3.58],
+            'JP_Sales': [3.77, 6.81], 'Other_Sales': [8.46, 0.77], 'Global_Sales': [82.74, 40.24]
+        })
 
 def transform_data(players, sessions, transactions, vgsales):
-    """Performs basic data cleaning and transformations."""
+    """Performs data cleaning and transformations."""
     print("Transforming data...")
-    # Convert date columns to datetime objects
     players['RegistrationDate'] = pd.to_datetime(players['RegistrationDate'])
     sessions['LoginTime'] = pd.to_datetime(sessions['LoginTime'])
     transactions['Timestamp'] = pd.to_datetime(transactions['Timestamp'])
-
-    # Simple deduplication
     sessions = sessions.drop_duplicates()
-
     return players, sessions, transactions, vgsales
 
 def load_to_postgres(players, sessions, transactions, vgsales):
@@ -36,7 +70,6 @@ def load_to_postgres(players, sessions, transactions, vgsales):
     for attempt in range(max_retries):
         try:
             print(f"Connecting to PostgreSQL (Attempt {attempt + 1}/{max_retries})...")
-            # Try to connect
             with engine.connect() as connection:
                 pass
             break
@@ -66,12 +99,10 @@ def run_churn_prediction(players):
         le_country = model_data['le_country']
         le_device = model_data['le_device']
 
-        # Prepare features
         players['Country_Enc'] = le_country.transform(players['Country'])
         players['Device_Enc'] = le_device.transform(players['DeviceType'])
 
-        X = players[['Country_Enc', 'Device_Enc']]
-        # Probability of being retained
+        X = players[['Country_Enc', 'Device_Enc', 'InitialSessionDuration']]
         probs = model.predict_proba(X)[:, 1]
         players['ChurnProbability'] = 1 - probs
         players['IsChurnRisk'] = (players['ChurnProbability'] > 0.5).astype(int)
@@ -83,30 +114,21 @@ def run_churn_prediction(players):
         return players
 
 def simulate_bigquery_export(players, sessions, transactions):
-    """
-    Simulates the process of exporting data to BigQuery.
-    In a real scenario, this would use google-cloud-bigquery client.
-    """
+    """Simulates the process of exporting data to BigQuery."""
     print("Simulating export to Google BigQuery...")
-    # Example: players.to_gbq('gaming_dataset.players', project_id='my-project-id')
     print(f"Data ready for BigQuery. Rows to export: Players({len(players)}), Sessions({len(sessions)}), Transactions({len(transactions)})")
 
 def simulate_sheets_automation(players):
-    """
-    Simulates updating a Google Sheet with high-risk churn players.
-    """
+    """Simulates updating a Google Sheet with high-risk churn players."""
     print("Simulating Google Sheets Automation...")
     high_risk = players[players['IsChurnRisk'] == 1]
-    # Example using gspread:
-    # gc = gspread.service_account(filename='credentials.json')
-    # sh = gc.open("Churn Risk Alerts").sheet1
-    # sh.update([high_risk.columns.values.tolist()] + high_risk.values.tolist())
     print(f"Alerted {len(high_risk)} high-risk players to Google Sheets.")
 
 if __name__ == "__main__":
     try:
         # 1. Extract
-        p, s, t, vg = load_local_data()
+        p, s, t = generate_mock_internal_data()
+        vg = load_vgsales()
 
         # 2. Transform
         p, s, t, vg = transform_data(p, s, t, vg)

@@ -1,5 +1,0 @@
-TransactionID,PlayerID,Amount,Timestamp,ItemCategory
-501,1,9.99,2026-06-01 10:30:00,Skins
-502,2,49.99,2026-06-01 12:15:00,Currency
-503,1,5.00,2026-06-03 08:30:00,Boost
-504,5,99.99,2026-06-04 14:00:00,Currency
